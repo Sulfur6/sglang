@@ -465,6 +465,7 @@ class DeepEPMoE(FusedMoE):
     def forward_deepgemm_masked(
         self,
         dispatch_output: DeepEPLLOutput,
+        down_gemm_overlap_args: Optional[DownGemmOverlapArgs],
     ):
         hidden_states_fp8, _, _, masked_m, expected_m = dispatch_output
         assert self.quant_method is not None
@@ -529,15 +530,16 @@ class DeepEPMoE(FusedMoE):
         down_output = torch.empty(
             (num_groups, m, n), device=down_input.device, dtype=torch.bfloat16
         )
-        deep_gemm_wrapper.grouped_gemm_nt_f8f8bf16_masked(
+        block_m, threshold = deep_gemm_wrapper.grouped_gemm_nt_f8f8bf16_masked(
             down_input_fp8,
             self.w2_weight_fp8,
             down_output,
             masked_m,
             expected_m,
+            down_gemm_overlap_args,
         )
 
-        return down_output
+        return down_output, block_m, threshold
 
     def forward_npu(
         self,
