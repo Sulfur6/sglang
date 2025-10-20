@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Callable
 
 import torch
 
@@ -191,6 +191,7 @@ class DeepEPMoE(FusedMoE):
         topk_idx: torch.Tensor,
         topk_weights: torch.Tensor,
         forward_batch: ForwardBatch,
+        forward_shared_experts: Optional[Callable] = None,
     ):
         return self.deepep_dispatcher.dispatch(
             hidden_states=hidden_states,

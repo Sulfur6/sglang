@@ -69,7 +69,8 @@ def execute_sbo(
     disable_sbo: bool = False,
 ):
     dispatch_output = experts.dispatch(
-        hidden_states, topk_idx, topk_weights, forward_batch
+        hidden_states, topk_idx, topk_weights, forward_batch,
+        forward_shared_experts=forward_shared_experts if not disable_sbo and SboFlags.enable_dispatch_shared_one_stream_overlap() else None,
     )
 
     combine_overlap_args, down_gemm_overlap_args, meta_overlap_args = (
