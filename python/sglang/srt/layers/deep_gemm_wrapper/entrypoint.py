@@ -1,6 +1,6 @@
 import logging
 from contextlib import contextmanager
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 
@@ -11,6 +11,7 @@ from sglang.srt.layers.deep_gemm_wrapper.configurer import (  # noqa: F401
     ENABLE_JIT_DEEPGEMM,
 )
 from sglang.srt.server_args import ServerArgs
+from sglang.srt.single_batch_overlap import DownGemmOverlapArgs
 from sglang.srt.utils import get_bool_env_var
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ def grouped_gemm_nt_f8f8bf16_masked(
     out: torch.Tensor,
     masked_m: torch.Tensor,
     expected_m: int,
+    down_gemm_overlap_args: Optional[DownGemmOverlapArgs] = None,
 ):
     num_groups, _, k = lhs[0].shape
     _, n, _ = rhs[0].shape
@@ -40,13 +42,25 @@ def grouped_gemm_nt_f8f8bf16_masked(
     with compile_utils.deep_gemm_execution_hook(
         expected_m, n, k, num_groups, kernel_type
     ):
-        deep_gemm.fp8_m_grouped_gemm_nt_masked(
-            lhs,
-            rhs,
-            out,
-            masked_m,
-            expected_m,
-        )
+        with configure_deep_gemm_num_sms(down_gemm_overlap_args.num_sms if down_gemm_overlap_args is not None else None):
+            if down_gemm_overlap_args is not None:
+                down_gemm_overlap_args.start_event.record()
+
+            return deep_gemm.fp8_m_grouped_gemm_nt_masked(
+                lhs,
+                rhs,
+                out,
+                masked_m,
+                expected_m,
+                **(
+                    dict(
+                        enable_overlap=True,
+                        signal=down_gemm_overlap_args.signal,
+                    )
+                    if down_gemm_overlap_args is not None
+                    else {}
+                )
+            )
 
 
 def grouped_gemm_nt_f8f8bf16_contig(
