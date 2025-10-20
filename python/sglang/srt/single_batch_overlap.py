@@ -7,7 +7,7 @@ from sglang.srt.layers import deep_gemm_wrapper
 from sglang.srt.layers.moe import get_moe_runner_backend
 from sglang.srt.layers.moe.utils import is_sbo_enabled
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
-from sglang.srt.utils import get_int_env_var
+from sglang.srt.utils import get_int_env_var, get_device_sm, is_blackwell
 
 if TYPE_CHECKING:
     from sglang.srt.layers.moe.ep_moe.layer import DeepEPMoE
@@ -21,17 +21,22 @@ class SboFlags:
         return (
             is_sbo_enabled()
             # currently only cutedsl backend supports it
-            and get_moe_runner_backend().is_flashinfer_cutedsl()
+            and (get_moe_runner_backend().is_flashinfer_cutedsl()
+                 or (get_moe_runner_backend().is_deep_gemm() and get_device_sm >= 90 and not is_blackwell()))
         )
 
     @classmethod
     def enable_combine_shared_two_stream_overlap(cls):
         return is_sbo_enabled()
+    
+    @classmethod
+    def enable_dispatch_shared_one_stream_overlap(cls):
+        return is_sbo_enabled()
 
     @classmethod
     def fuse_shared_experts_inside_sbo(cls):
         # TODO after antgroup's PR, should be `... or cls.enable_dispatch_shared_one_stream_overlap()`
-        return cls.enable_combine_shared_two_stream_overlap()
+        return cls.enable_combine_shared_two_stream_overlap() or cls.enable_dispatch_shared_one_stream_overlap()
 
 
 @dataclass
@@ -42,6 +47,7 @@ class CombineOverlapArgs:
     wait_event: torch.cuda.Event
     num_sms: int
     signal: Optional[torch.Tensor] = None
+    block_m: int = 64
     threshold: int = 0
 
 
@@ -73,6 +79,12 @@ def execute_sbo(
     hidden_states = experts.moe_impl(
         dispatch_output, down_gemm_overlap_args=down_gemm_overlap_args
     )
+    if not is_blackwell():
+        hidden_states, block_m, threshold = hidden_states
+        if combine_overlap_args is not None:
+            combine_overlap_args.block_m = block_m
+            combine_overlap_args.threshold = threshold
+
     if (e := meta_overlap_args.get("record_event_after_down")) is not None:
         e.record()
 
@@ -129,15 +141,23 @@ def _compute_overlap_args(dispatch_output, alt_stream, disable_sbo):
     if SboFlags.enable_combine_down_gemm_two_stream_overlap():
         # TODO use zero_allocator to remove this `torch.zeros` call
         # NOTE ours v2 use uint32 not int32 currently
-        combine_signal = torch.zeros(
-            num_local_experts, dtype=torch.uint32, device=hidden_states.device
-        )
+        if is_blackwell():
+            combine_signal = torch.zeros(
+                num_local_experts, dtype=torch.uint32, device=hidden_states.device
+            )
+        else:
+            MIN_BLOCK_M = 64
+            combine_signal_size = num_local_experts * ((num_tokens_static + MIN_BLOCK_M - 1) // MIN_BLOCK_M)
+            combine_signal = torch.zeros(
+                combine_signal_size, dtype=torch.uint32, device=hidden_states.device
+            )
 
         down_gemm_overlap_args = DownGemmOverlapArgs(
             signal=combine_signal,
             start_event=combine_wait_event,
             num_sms=compute_num_sms,
         )
+
         combine_overlap_args.overlap = True
         combine_overlap_args.signal = combine_signal
         combine_overlap_args.threshold = compute_num_sms
