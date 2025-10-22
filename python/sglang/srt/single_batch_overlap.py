@@ -22,7 +22,7 @@ class SboFlags:
             is_sbo_enabled()
             # currently only cutedsl backend supports it
             and (get_moe_runner_backend().is_flashinfer_cutedsl()
-                 or (get_moe_runner_backend().is_deep_gemm() and get_device_sm >= 90 and not is_blackwell()))
+                 or (get_moe_runner_backend().is_deep_gemm() and get_device_sm() >= 90 and not is_blackwell()))
         )
 
     @classmethod
