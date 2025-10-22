@@ -205,6 +205,7 @@ class DeepEPMoE(FusedMoE):
                 and CUTEDSL_MOE_NVFP4_DISPATCH
                 else None
             ),
+            forward_shared_experts=forward_shared_experts,
         )
 
     def moe_impl(
