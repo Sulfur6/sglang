@@ -150,7 +150,7 @@ def _compute_overlap_args(dispatch_output, alt_stream, disable_sbo):
             MIN_BLOCK_M = 64
             combine_signal_size = num_local_experts * ((num_tokens_static + MIN_BLOCK_M - 1) // MIN_BLOCK_M)
             combine_signal = torch.zeros(
-                combine_signal_size, dtype=torch.uint32, device=hidden_states.device
+                combine_signal_size, dtype=torch.int32, device=hidden_states.device
             )
 
         down_gemm_overlap_args = DownGemmOverlapArgs(
