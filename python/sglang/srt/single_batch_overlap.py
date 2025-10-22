@@ -27,7 +27,7 @@ class SboFlags:
 
     @classmethod
     def enable_combine_shared_two_stream_overlap(cls):
-        return is_sbo_enabled() and not cls.enable_combine_shared_two_stream_overlap()
+        return is_sbo_enabled() and not cls.enable_dispatch_shared_one_stream_overlap()
     
     @classmethod
     def enable_dispatch_shared_one_stream_overlap(cls):

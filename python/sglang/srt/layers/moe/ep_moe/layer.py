@@ -232,7 +232,7 @@ class DeepEPMoE(FusedMoE):
                     dispatch_output, down_gemm_overlap_args=down_gemm_overlap_args
                 )
             assert deep_gemm_wrapper.ENABLE_JIT_DEEPGEMM and self.use_fp8_w8a8
-            return self.forward_deepgemm_masked(dispatch_output)
+            return self.forward_deepgemm_masked(dispatch_output, down_gemm_overlap_args=down_gemm_overlap_args)
         else:
             raise ValueError(
                 f"Dispatch output format {dispatch_output.format} is not supported"
