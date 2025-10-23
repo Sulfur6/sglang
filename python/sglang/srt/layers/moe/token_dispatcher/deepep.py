@@ -632,15 +632,10 @@ class _DeepEPDispatcherImplLowLatency(_DeepEPDispatcherImplBase):
         return hidden_states, event, hook, overlap_args
 
     def combine_b(self, hidden_states, event, hook, overlap_args):
-        # if overlap_args is not None:
-        #     overlap_args.stream.wait_stream(self.device_module.current_stream())
-
-        ctx = nullcontext()
         if overlap_args is not None:
-            ctx = torch.cuda.stream(overlap_args.stream)
+            overlap_args.stream.wait_stream(self.device_module.current_stream())
 
-        with ctx:
-            hook() if self.return_recv_hook else event.current_stream_wait()
+        hook() if self.return_recv_hook else event.current_stream_wait()
 
         if overlap_args is not None:
             self.device_module.current_stream().wait_stream(overlap_args.stream)
