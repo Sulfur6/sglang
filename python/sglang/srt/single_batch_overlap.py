@@ -80,11 +80,11 @@ def execute_sbo(
     hidden_states = experts.moe_impl(
         dispatch_output, down_gemm_overlap_args=down_gemm_overlap_args
     )
-    # if not is_blackwell():
-    #     hidden_states, block_m, threshold = hidden_states
-    #     if combine_overlap_args is not None:
-    #         combine_overlap_args.block_m = block_m
-    #         combine_overlap_args.threshold = threshold
+    if not is_blackwell():
+        hidden_states, block_m, threshold = hidden_states
+        if combine_overlap_args is not None:
+            combine_overlap_args.block_m = block_m
+            combine_overlap_args.threshold = threshold
 
     if (e := meta_overlap_args.get("record_event_after_down")) is not None:
         e.record()
